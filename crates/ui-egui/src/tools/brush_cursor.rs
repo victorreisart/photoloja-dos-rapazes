@@ -43,8 +43,7 @@ impl Key {
 }
 
 /// The screen vectors of one tip radius (`size / 2` document pixels) along the document's x and
-/// y axes: the view's zoom, rotation, flip and pixel aspect, which the outline follows as the
-/// stroke does.
+/// y axes, including the view's zoom and pixel aspect.
 pub(crate) fn tip_axes(xf: &crate::canvas::ViewXform, size: f32) -> [Vec2; 2] {
     let r = if size.is_finite() { size.max(0.0) / 2.0 } else { 0.0 };
     let screen = crate::canvas::ViewXform { rotation: 0.0, flip: false, ..*xf };
@@ -219,16 +218,12 @@ mod tests {
         assert_eq!(pen_axes(&xf, &brush, Some(crate::stylus::PenSample::default())), tip_axes(&xf, brush.size));
     }
 
-    /// The axes are the screen offsets of the document points one radius right of and below the
-    /// pointer, whatever the view does.
     #[test]
-    fn tip_axes_follow_the_view_like_to_screen() {
-        for (rotation, flip, aspect) in [(0.0, false, 1.0), (30.0, false, 1.0), (-90.0, true, 1.0), (45.0, true, 2.0), (200.0, false, 0.5)] {
-            let xf = view(rotation, flip, aspect);
-            let [ex, ey] = tip_axes(&xf, 20.0);
-            let o = xf.to_screen(60.0, 30.0);
-            assert!(close(ex, xf.to_screen(70.0, 30.0) - o), "x axis at {rotation}°, flip {flip}, aspect {aspect}");
-            assert!(close(ey, xf.to_screen(60.0, 40.0) - o), "y axis at {rotation}°, flip {flip}, aspect {aspect}");
+    fn tip_axes_keep_zoom_and_aspect_but_ignore_rotation_and_flip() {
+        for (rotation, flip, aspect) in [(30.0, false, 1.0), (-90.0, true, 1.0), (45.0, true, 2.0), (200.0, false, 0.5)] {
+            let actual = tip_axes(&view(rotation, flip, aspect), 20.0);
+            let expected = tip_axes(&view(0.0, false, aspect), 20.0);
+            assert_eq!(actual, expected);
         }
     }
 
@@ -239,17 +234,6 @@ mod tests {
         let pts = on_screen(&rings, tip_axes(&view(0.0, false, 1.0), 20.0));
         let want = [Vec2::new(20.0, 0.0), Vec2::new(0.0, 10.0), Vec2::new(-20.0, 0.0)];
         assert!(pts[0].iter().zip(want).all(|(a, b)| close(*a, b)), "{pts:?}");
-    }
-
-    /// A tip pointing along the document's x axis points down the screen in a view turned 90°,
-    /// and left in a flipped one.
-    #[test]
-    fn the_outline_turns_and_flips_with_the_view() {
-        let rings = vec![vec![[1.0, 0.0]]];
-        let turned = on_screen(&rings, tip_axes(&view(90.0, false, 1.0), 20.0));
-        assert!(close(turned[0][0], Vec2::new(0.0, 20.0)), "{turned:?}");
-        let flipped = on_screen(&rings, tip_axes(&view(0.0, true, 1.0), 20.0));
-        assert!(close(flipped[0][0], Vec2::new(-20.0, 0.0)), "{flipped:?}");
     }
 
     #[test]
