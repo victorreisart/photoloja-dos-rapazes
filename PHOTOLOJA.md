@@ -1,4 +1,4 @@
-# PhotoLoja dos rapazes
+# PhotoLoja dos Rapazes
 
 Editor derivado do PhotoCraft, com marca, instalação e perfil próprios.
 Esta edição parte da base PhotoCraft v0.23.1 e inclui os ajustes locais da 0.23.3.

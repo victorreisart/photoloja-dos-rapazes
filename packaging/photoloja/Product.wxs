@@ -1,5 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="PhotoLoja dos rapazes" Manufacturer="PhotoLoja dos rapazes" Version="0.23.3"
+  <Package Name="PhotoLoja dos Rapazes" Manufacturer="PhotoLoja dos Rapazes" Version="0.23.4"
            UpgradeCode="5FF348B3-51EF-447B-A8D2-7D6499822B6E" Scope="perUser" Compressed="yes">
     <MajorUpgrade DowngradeErrorMessage="Uma versão mais recente do PhotoLoja já está instalada." />
     <MediaTemplate EmbedCab="yes" />
@@ -13,7 +13,7 @@
         <Directory Id="INSTALLFOLDER" Name="PhotoLoja">
           <Component Id="App" Guid="6DAF479A-094B-48B0-A015-B29C9856B033">
             <File Source="$(var.App)" Name="photoloja.exe" KeyPath="yes">
-              <Shortcut Id="Launch" Directory="ProgramMenuFolder" Name="PhotoLoja dos rapazes"
+              <Shortcut Id="Launch" Directory="ProgramMenuFolder" Name="PhotoLoja dos Rapazes"
                         Advertise="yes" Icon="PhotoLoja.exe" WorkingDirectory="INSTALLFOLDER" />
             </File>
             <RegistryValue Root="HKCU" Key="Software\PhotoLoja" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />

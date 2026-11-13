@@ -21,9 +21,9 @@ fn main() {
     }
     let mut res = winresource::WindowsResource::new();
     res.set_icon("../../assets/photoloja/photoloja.ico")
-        .set("ProductName", "PhotoLoja dos rapazes")
-        .set("FileDescription", "PhotoLoja dos rapazes image editor")
-        .set("CompanyName", "PhotoLoja dos rapazes")
+        .set("ProductName", "PhotoLoja dos Rapazes")
+        .set("FileDescription", "PhotoLoja dos Rapazes image editor")
+        .set("CompanyName", "PhotoLoja dos Rapazes")
         .set("LegalCopyright", "Copyright (c) the PhotoCraft authors. MIT OR Apache-2.0.")
         .set("OriginalFilename", "photoloja.exe")
         .set("InternalName", "photoloja");

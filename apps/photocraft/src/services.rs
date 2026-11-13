@@ -42,7 +42,7 @@ fn open_filter_extensions(extensions: &[&str]) -> Vec<String> {
 /// picker defaults to another filter.
 const OPEN_FILTERS: &[(&str, &[&str])] = &[
     ("Photoshop", &["psd", "psb", "psdt"]),
-    ("PhotoLoja dos rapazes", &["pcraft"]),
+    ("PhotoLoja dos Rapazes", &["pcraft"]),
     ("Affinity", &["af", "afdesign", "afphoto", "afpub"]),
     ("Amiga IFF", &["iff", "lbm", "ilbm"]),
     ("BMP", &["bmp", "dib"]),
@@ -92,7 +92,7 @@ fn open_filters() -> Vec<(&'static str, Vec<String>)> {
 const SAVE_FILTERS: &[(&str, &[&str])] = &[
     ("PSD Document", &["psd", "psb"]),
     ("PSB Large Document", &["psb"]),
-    ("PhotoLoja dos rapazes", &["pcraft"]),
+    ("PhotoLoja dos Rapazes", &["pcraft"]),
     ("Amiga IFF", &["iff"]),
     ("BMP", &["bmp", "dib"]),
     ("Cineon", &["cin"]),

@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyTitle("Instalador do PhotoLoja dos rapazes")]
-[assembly: AssemblyProduct("PhotoLoja dos rapazes")]
-[assembly: AssemblyVersion("0.23.3.0")]
+[assembly: AssemblyTitle("Instalador do PhotoLoja dos Rapazes")]
+[assembly: AssemblyProduct("PhotoLoja dos Rapazes")]
+[assembly: AssemblyVersion("0.23.4.0")]
 
 internal sealed class Setup : Form
 {
-    private const string Product = "PhotoLoja dos rapazes";
+    private const string Product = "PhotoLoja dos Rapazes";
     private readonly Color ink = Color.FromArgb(10, 27, 50);
     private readonly Color blue = Color.FromArgb(46, 113, 225);
     private readonly TextBox folder = new TextBox();
@@ -77,7 +77,7 @@ internal sealed class Setup : Form
             try { Process.Start(Path.Combine(folder.Text, "photoloja.exe")); Close(); }
             catch (Exception error) { status.Text = error.Message; }
         };
-        LabelAt("PhotoLoja dos rapazes 0.23.3 · Windows x64", 36, 489, 630, 24, 9, false);
+        LabelAt("PhotoLoja dos Rapazes 0.23.4 · Windows x64", 36, 489, 630, 24, 9, false);
         AcceptButton = install;
     }
 
