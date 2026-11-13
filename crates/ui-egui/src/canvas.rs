@@ -1262,6 +1262,13 @@ fn handle_canvas_tool_stroke(
         let d = xf.to_doc(p);
         // The press's own modifiers: a ⇧ that arrives with the click still connects the line.
         let press_mods = ui.input(|i| pointer_button_modifiers(&i.events, PointerButton::Primary)).unwrap_or(mods);
+        let press_force = ui.input(|i| {
+            i.events.iter().find_map(|event| match event {
+                egui::Event::Touch { phase: egui::TouchPhase::Start, pos, force, .. } if *pos == p => *force,
+                _ => None,
+            })
+        });
+        app.stylus.select_force(press_force);
         tool_input::tool_event_with_view(
             app,
             ToolEvent::Down { x: d[0], y: d[1], pressure: app.stylus.pressure() },
@@ -1270,6 +1277,7 @@ fn handle_canvas_tool_stroke(
         );
         app.press_stroke = app.drag.is_some();
     }
+    app.stylus.clear_selection();
     let press_stroke = app.press_stroke;
     // A live tool's press that went to the ⌥ eyedropper keeps sampling for the whole press: the
     // drag recognised later must not decide again with ⌥ already let go and paint (#7802).
@@ -1317,12 +1325,10 @@ fn handle_canvas_tool_stroke(
         };
         let press_this_frame = events.iter().any(|e| matches!(e, egui::Event::PointerButton { button: b, pressed: true, .. } if *b == button));
         let down_at_start = !press_this_frame && (gesture_active_before || buttons.started);
-        let mut positions = if app.brush_resize.is_some() {
-            response.interact_pointer_pos().into_iter().collect()
+        let mut positions = if app.brush_resize.is_some() || (!freehand_tool(tool) && buttons.dragged) {
+            response.interact_pointer_pos().map(|p| (p, None)).into_iter().collect()
         } else if freehand_tool(tool) {
             pointer_moves(&events, button, down_at_start)
-        } else if buttons.dragged {
-            response.interact_pointer_pos().into_iter().collect()
         } else {
             Vec::new()
         };
@@ -1332,15 +1338,16 @@ fn handle_canvas_tool_stroke(
             && (buttons.dragged || press_stroke_moving)
             && let Some(p) = response.interact_pointer_pos().or(ui.input(|i| i.pointer.latest_pos()))
         {
-            positions.push(p);
+            positions.push((p, None));
         }
         app.defer_live_stroke = true;
         let base = app.stylus.last_point_ms().map_or(now_ms, |t| t.min(now_ms));
         let n = positions.len();
-        for (k, p) in positions.into_iter().enumerate() {
+        for (k, (p, force)) in positions.into_iter().enumerate() {
             app.stylus.clock_ms = spread_ms(base, now_ms, k, n);
             // This move's share of the pen samples the frame brought (pressure, tilt, rotation).
             app.stylus.select(k, n);
+            app.stylus.select_force(force);
             let d = xf.to_doc(p);
             tool_input::tool_event_with_view(
                 app,

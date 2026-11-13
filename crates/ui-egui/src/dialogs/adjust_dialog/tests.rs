@@ -92,6 +92,20 @@ fn dialogs_preview_cancel_and_commit() {
     }
 }
 
+#[test]
+fn hue_saturation_preview_follows_values_and_can_be_hidden() {
+    let mut app = app_with_image();
+    let before = pixel(&app, 8, 8);
+    let id = open(&mut app, "image.adjustments.hueSaturation").unwrap();
+    app.ui.dialog_mut(id).unwrap().fields.insert("hue".into(), json!(90));
+    let (shown, _) = crate::adjust_preview::display_doc(&mut app, 0).unwrap();
+    let rendered = photocraft_compose::render(&shown, shown.bounds());
+    assert_ne!(rendered.px[8 * 64 + 8], before);
+    assert_eq!(pixel(&app, 8, 8), before);
+    app.ui.dialog_mut(id).unwrap().fields.insert("__preview".into(), json!(false));
+    assert!(crate::adjust_preview::display_doc(&mut app, 0).is_none());
+}
+
 fn color_balance_dialog() -> (Harness<'static, PhotocraftApp>, u64) {
     // Real frame times: a double-click's two clicks must land within the double-click time.
     let mut h = Harness::builder()

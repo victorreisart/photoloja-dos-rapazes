@@ -1792,16 +1792,17 @@ fn pointer_moves_are_bounded_by_the_press_and_release() {
     let events = [
         Event::PointerMoved(pos2(1.0, 0.0)),
         button(pos2(2.0, 0.0), true),
+        Event::Touch { device_id: egui::TouchDeviceId(0), id: egui::TouchId(1), phase: egui::TouchPhase::Move, pos: pos2(3.0, 0.0), force: Some(0.4) },
         Event::PointerMoved(pos2(3.0, 0.0)),
         Event::PointerMoved(pos2(4.0, 0.0)),
         button(pos2(5.0, 0.0), false),
         Event::PointerMoved(pos2(6.0, 0.0)),
     ];
     // The press is in this frame: only the moves between press and release count.
-    assert_eq!(pointer_moves(&events, PointerButton::Primary, false), vec![pos2(3.0, 0.0), pos2(4.0, 0.0)]);
+    assert_eq!(pointer_moves(&events, PointerButton::Primary, false), vec![(pos2(3.0, 0.0), Some(0.4)), (pos2(4.0, 0.0), None)]);
     // The button was already down when the frame began: the move before the release counts,
     // the one after it does not.
-    assert_eq!(pointer_moves(&events, PointerButton::Primary, true), vec![pos2(1.0, 0.0), pos2(3.0, 0.0), pos2(4.0, 0.0)]);
+    assert_eq!(pointer_moves(&events, PointerButton::Primary, true), vec![(pos2(1.0, 0.0), None), (pos2(3.0, 0.0), Some(0.4)), (pos2(4.0, 0.0), None)]);
 }
 
 #[test]
@@ -2578,6 +2579,20 @@ fn drag_frames(smoothing: f32, xs: &[f64]) -> (std::sync::Arc<Document>, std::sy
 fn same_pixels(a: &Document, b: &Document) -> bool {
     let (a, b) = (a.layers[0].surface().unwrap(), b.layers[0].surface().unwrap());
     (0..80).all(|y| (0..200).all(|x| a.rgba(x, y) == b.rgba(x, y)))
+}
+
+#[test]
+fn zero_smoothing_keeps_subpixel_brush_motion() {
+    let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.run("file.new", json!({"width": 64, "height": 64})).unwrap();
+    app.ui.tool = Tool::Brush;
+    app.session.tools.brush.smoothing.amount = 0.0;
+    let mods = egui::Modifiers::NONE;
+    crate::canvas::tool_input::tool_event(&mut app, ToolEvent::Down { x: 10.0, y: 10.0, pressure: 0.5 }, mods);
+    crate::canvas::tool_input::tool_event(&mut app, ToolEvent::Move { x: 10.125, y: 10.0, pressure: 0.4 }, mods);
+    let points = &app.drag.as_ref().unwrap().points;
+    assert_eq!(points.len(), 2);
+    assert_eq!(points[1][0], 10.125);
 }
 
 #[test]

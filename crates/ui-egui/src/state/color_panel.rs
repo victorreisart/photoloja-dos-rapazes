@@ -18,7 +18,7 @@ pub struct DockTabs {
 }
 
 /// Color panel state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ColorPanelState {
     /// The panel edits the background colour (its chip was clicked), not the foreground.
@@ -33,6 +33,23 @@ pub struct ColorPanelState {
     pub ramp: ColorRamp,
     /// Make Ramp Web Safe: the ramp shows (and picks) web colours only.
     pub web_safe_ramp: bool,
+    /// Independent slider groups above the wheel.
+    pub wheel_hsb: bool,
+    pub wheel_lab: bool,
+}
+
+impl Default for ColorPanelState {
+    fn default() -> Self {
+        Self {
+            background: false,
+            web_only: false,
+            mode: ColorPanelMode::default(),
+            ramp: ColorRamp::default(),
+            web_safe_ramp: false,
+            wheel_hsb: true,
+            wheel_lab: false,
+        }
+    }
 }
 
 /// The Color panel's display, Photoshop's panel menu choices in its order. Hue Cube is

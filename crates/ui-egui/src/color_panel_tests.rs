@@ -332,11 +332,33 @@ fn color_wheel_ring_sets_hue_and_triangle_sets_saturation_and_brightness() {
     press(&mut h, pos2(center.x, center.y - mid), Modifiers::NONE);
     let [r, g, bl] = bytes(h.state().session.tools.foreground);
     assert!(r > 100 && g > 240 && bl < 10, "hue 90: {r} {g} {bl}");
+    // Its pure hue corner stays on the right even after moving the hue knob away.
+    press(&mut h, center, Modifiers::NONE);
+    press(&mut h, pos2(center.x + inner * 0.91, center.y), Modifiers::NONE);
+    let rgb = h.state().session.tools.foreground;
+    let [_, saturation, brightness] = photocraft_color::convert::rgb_to_hsb([rgb[0], rgb[1], rgb[2]]);
+    assert!(saturation > 0.9 && brightness > 0.9, "{rgb:?}");
     // The triangle's centre: some saturation, some brightness, same hue.
     press(&mut h, center, Modifiers::NONE);
     let after = bytes(h.state().session.tools.foreground);
     let hsv = photocraft_color::convert::rgb_to_hsb(after.map(|v| f32::from(v) / 255.0));
     assert!((hsv[0] - 90.0).abs() < 4.0 && hsv[1] < 0.9 && hsv[2] < 0.95, "{after:?} {hsv:?}");
+}
+
+#[test]
+fn wheel_can_show_both_slider_groups_or_lab_alone() {
+    let mut h = color_tab(ThemeKind::Pro, ColorPanelMode::ColorWheel, [0.2, 0.6, 0.8, 1.0]);
+    assert!(h.query_by_label("H").is_some());
+    assert!(h.query_by_label("L").is_none());
+    h.state_mut().ui.color_panel.wheel_lab = true;
+    h.run_steps(2);
+    assert!(h.query_by_label("H").is_some());
+    assert!(h.query_by_label("L").is_some());
+    h.state_mut().ui.color_panel.wheel_hsb = false;
+    h.run_steps(2);
+    assert!(h.query_by_label("H").is_none());
+    assert!(h.query_by_label("L").is_some());
+    assert!(h.query_by_label("Color Wheel").is_some());
 }
 
 /// The wheel's ring and triangle are meshes, which egui doesn't antialias: each edge fades to
@@ -503,6 +525,9 @@ fn color_wheel_ignores_clicks_beside_it() {
     assert!(corner.distance(center) > outer + 20.0, "the corner is beside the wheel");
     press(&mut h, corner, Modifiers::NONE);
     assert_eq!(bytes(h.state().session.tools.foreground), [0, 0, 255]);
+    // The open gap between the triangle's vertical edge and the hue ring is also inert.
+    press(&mut h, center - vec2(outer * 0.68, 0.0), Modifiers::NONE);
+    assert_eq!(bytes(h.state().session.tools.foreground), [0, 0, 255]);
 }
 
 /// The Color Wheel shrinks to the Color group at its default height in every theme, as the
@@ -530,6 +555,10 @@ fn color_wheel_fits_the_default_color_group() {
         let wheel = h.query_by_label("Color Wheel").unwrap_or_else(|| panic!("{kind:?}: no Color Wheel")).rect();
         // The group's scroll area ends at least 8 pt above its bottom edge (the card's bottom margin).
         assert!(wheel.bottom() <= group.bottom() - 8.0, "{kind:?}: wheel {wheel:?} runs past the Color group {group:?}");
+        h.state_mut().ui.color_panel.wheel_lab = true;
+        h.run_steps(2);
+        let wheel = h.get_by_label("Color Wheel").rect();
+        assert!(wheel.height() >= 96.0, "{kind:?}: the scrollable wheel must stay usable with both slider groups");
     }
 }
 

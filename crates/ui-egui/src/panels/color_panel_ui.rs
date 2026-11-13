@@ -1,5 +1,5 @@
 //! Photoshop's Color panel modes, picked from its panel menu and the same in every theme (#6000,
-//! #2569): Hue Cube and Brightness Cube (drawn by [`crate::panels::color_field`]), Color Wheel (HSB
+//! #2569): Hue Cube and Brightness Cube (drawn by [`crate::panels::color_field`]), Color Wheel (optional HSB and Lab
 //! sliders over a hue ring around a saturation/brightness triangle), and the Grayscale, RGB, HSB,
 //! CMYK, Lab and Web Color sliders over a colour ramp. The panel menu also has Copy Color as HTML,
 //! Copy Color's Hex Code, the ramp choices (RGB Spectrum, CMYK Spectrum, Grayscale Ramp, Current
@@ -532,29 +532,30 @@ fn rgb3(c: [f32; 4]) -> [f32; 3] {
     [c[0], c[1], c[2]].map(|v| v.clamp(0.0, 1.0))
 }
 
-/// The Color Wheel: HSB sliders over a hue ring (red at the right, running counter-clockwise
-/// through yellow and green) around a triangle whose tip is the hue, with white and black at its
-/// other corners; the add-to-swatches button sits under it.
+/// A hue ring around the fixed saturation/brightness triangle, with optional sliders above.
 fn wheel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let top = ui.cursor().top();
     let background = app.ui.color_panel.background;
-    let rgb = active(app);
-    let v = current_values(ui, Model::Hsb, background, rgb);
     let dynamic = app.session.prefs().interface.dynamic_color_sliders;
-    let rows_h = 3.0 * (ROW_H + ui.spacing().item_spacing.y);
-    let top_h = rows_h.max(CHIPS_W);
-    let mut edited = None;
+    let models = [(app.ui.color_panel.wheel_hsb, Model::Hsb), (app.ui.color_panel.wheel_lab, Model::Lab)];
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        let (col, _) = ui.allocate_exact_size(vec2(CHIPS_W, top_h), Sense::hover());
+        let (col, _) = ui.allocate_exact_size(vec2(CHIPS_W, CHIPS_W), Sense::hover());
         field_chips(app, ui, col);
         ui.vertical(|ui| {
-            edited = slider_rows(ui, Model::Hsb, v, background, dynamic);
+            for (visible, model) in models {
+                if visible {
+                    let v = current_values(ui, model, background, active(app));
+                    if let Some(edited) = ui.push_id(model, |ui| slider_rows(ui, model, v, background, dynamic)).inner {
+                        apply_values(app, ui, model, edited);
+                    }
+                }
+            }
         });
     });
-    let mut v = edited.unwrap_or(v);
-    let mut changed = edited.is_some();
+    let mut v = current_values(ui, Model::Hsb, background, active(app));
+    let mut changed = false;
     ui.add_space(6.0);
     let fill = ui.data(|d| d.get_temp::<f32>(color_field_fill_id()));
     let w = ui.available_width();
@@ -562,39 +563,43 @@ fn wheel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     // than `ROW_H`), down to 28 pt as the slider modes' ramp: an estimate and an 80 pt floor ran
     // it past the bottom of the Color group at its default height.
     let used = ui.cursor().top() - top;
-    let side = fill.filter(|f| f.is_finite()).map_or(w.min(220.0), |f| (f - used).min(w)).max(28.0);
+    // When both groups overflow the dock, keep the wheel usable in its scroll area.
+    let min_side = if models.iter().all(|(visible, _)| *visible) { w.min(96.0) } else { 28.0 };
+    let side = fill.filter(|f| f.is_finite()).map_or(w.min(220.0), |f| (f - used).min(w)).max(min_side);
     let (area, resp) = ui.allocate_exact_size(vec2(w, side), Sense::click_and_drag());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Unknown, ui.is_enabled(), "Color Wheel"));
     let (center, inner, outer) = wheel_geometry(area);
-    let ring_w = outer - inner;
-    let (h, s, b) = (v[0] / 360.0, v[1] / 100.0, v[2] / 100.0);
-    // Meshes aren't antialiased by egui: the ring and the triangle feather their own edges as
-    // egui's shapes do (#9996).
-    // Read outside the options' lock: asking the context for its scale inside it deadlocks.
-    let ppp = ui.ctx().pixels_per_point();
-    let feather = ui.ctx().tessellation_options(|o| if o.feathering { o.feathering_size_in_pixels / ppp } else { 0.0 });
-    ui.painter().add(ring_mesh(center, inner, outer, feather));
-    let tri = triangle(center, inner - 1.0, h);
-    ui.painter().add(triangle_mesh(tri, h, feather));
-    // Which part a drag began on: the ring sets the hue, the triangle saturation and brightness.
-    // The ring or the triangle, from where the press began (kept for frames without a press
-    // origin), so a drag that leaves the ring keeps turning the hue.
+    let tri = triangle(center, inner - 1.0);
+    // Choose the control at the start of the gesture and keep it until release.
     let drag_key = ui.scope_id().with("color-wheel-drag");
-    if (resp.dragged() || resp.clicked())
+    if (resp.dragged() || resp.drag_stopped() || resp.clicked())
         && let Some(p) = resp.interact_pointer_pos()
     {
         // A click is where it landed; a drag goes by where its press began.
-        let origin = if resp.clicked() { Some(p) } else { ui.input(|i| i.pointer.press_origin()) };
+        let origin = if resp.clicked() {
+            Some(p)
+        } else if resp.drag_started() {
+            ui.input(|i| i.pointer.press_origin())
+        } else {
+            None
+        };
         // `None`: the press began beside the wheel (the area spans the panel), which picks nothing.
         let part = match origin {
             Some(origin) => {
                 let d = origin.distance(center);
-                // The hue knob reaches past the ring's edge on a small wheel.
-                let part = (d <= outer + 7.0).then_some(d >= inner - 2.0);
+                let angle = v[0] / 360.0 * TAU;
+                let knob = center + vec2(angle.cos(), -angle.sin()) * ((inner + outer) / 2.0);
+                let part = if triangle_contains(tri, origin) {
+                    Some(false)
+                } else if (inner..=outer).contains(&d) || origin.distance(knob) <= 6.5 {
+                    Some(true)
+                } else {
+                    None
+                };
                 ui.data_mut(|data| data.insert_temp(drag_key, part));
                 part
             }
-            None => ui.data(|d| d.get_temp::<Option<bool>>(drag_key)).unwrap_or(Some(false)),
+            None => ui.data(|d| d.get_temp::<Option<bool>>(drag_key)).flatten(),
         };
         match part {
             Some(true) => {
@@ -606,15 +611,27 @@ fn wheel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                 if let Some((s2, b2)) = triangle_sv(tri, p) {
                     v[1] = (s2 * 100.0).round();
                     v[2] = (b2 * 100.0).round();
+                    changed = true;
                 }
-                changed = true;
             }
             None => {}
         }
     }
+    if resp.drag_stopped() || resp.clicked() {
+        ui.data_mut(|d| d.remove::<Option<bool>>(drag_key));
+    }
+    if changed {
+        apply_values(app, ui, Model::Hsb, v);
+    }
+    let (h, s, b) = (v[0] / 360.0, v[1] / 100.0, v[2] / 100.0);
+    // Meshes feather their edges because egui does not antialias mesh geometry.
+    let ppp = ui.ctx().pixels_per_point();
+    let feather = ui.ctx().tessellation_options(|o| if o.feathering { o.feathering_size_in_pixels / ppp } else { 0.0 });
+    ui.painter().add(ring_mesh(center, inner, outer, feather));
+    ui.painter().add(triangle_mesh(tri, h, feather));
     // Knobs: on the ring at the hue, in the triangle at the saturation and brightness.
     let a = h * TAU;
-    let ring_knob = center + vec2(a.cos(), -a.sin()) * (inner + ring_w / 2.0);
+    let ring_knob = center + vec2(a.cos(), -a.sin()) * ((inner + outer) / 2.0);
     let tri_knob = triangle_point(tri, s, b);
     for k in [ring_knob, tri_knob] {
         ui.painter().circle_stroke(k, 5.0, Stroke::new(1.5, Color32::WHITE));
@@ -628,13 +645,10 @@ fn wheel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let add_resp = ui.interact(add, ui.scope_id().with("color-wheel-add"), Sense::click());
     add_resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), "Add to Swatches"));
     if add_resp.on_hover_text(tl!("Create new swatch")).clicked()
-        && let Err(e) = app.run("swatches.add", json!({"color": hex(rgb)}))
+        && let Err(e) = app.run("swatches.add", json!({"color": hex(active(app))}))
     {
         app.ui.status = e;
         app.ui.status_error = true;
-    }
-    if changed {
-        apply_values(app, ui, Model::Hsb, v);
     }
 }
 
@@ -672,14 +686,24 @@ pub(crate) fn ring_mesh(center: Pos2, inner: f32, outer: f32, feather: f32) -> M
     m
 }
 
-/// The triangle's corners for hue `h` (0..1): the pure hue at the hue's angle, white 120° on and
-/// black 240° on, inside radius `r`.
-fn triangle(center: Pos2, r: f32, h: f32) -> [Pos2; 3] {
+/// Fixed pure hue, white and black corners inside radius `r`.
+fn triangle(center: Pos2, r: f32) -> [Pos2; 3] {
     let at = |turns: f32| {
-        let a = (h + turns) * TAU;
+        let a = turns * TAU;
         center + vec2(a.cos(), -a.sin()) * r
     };
     [at(0.0), at(1.0 / 3.0), at(2.0 / 3.0)]
+}
+
+/// The wheel only starts a saturation/brightness gesture on the painted triangle.
+fn triangle_contains([a, b, c]: [Pos2; 3], p: Pos2) -> bool {
+    let side = |from: Pos2, to: Pos2| {
+        let edge = to - from;
+        let offset = p - from;
+        edge.x * offset.y - edge.y * offset.x
+    };
+    let signs = [side(a, b), side(b, c), side(c, a)];
+    signs.iter().all(|&s| s >= -0.01) || signs.iter().all(|&s| s <= 0.01)
 }
 
 /// The point of saturation `s` and brightness `b` in the triangle: black + b·(white − black) +
@@ -812,6 +836,17 @@ pub(crate) fn panel_menu(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         }
     }
     ui.separator();
+    if app.ui.color_panel.mode == ColorPanelMode::ColorWheel {
+        ui.menu_button(tl!("Color Wheel Sliders"), |ui| {
+            if check_item(ui, app.ui.color_panel.wheel_hsb, ColorPanelMode::HsbSliders.label()) {
+                app.ui.color_panel.wheel_hsb = !app.ui.color_panel.wheel_hsb;
+            }
+            if check_item(ui, app.ui.color_panel.wheel_lab, ColorPanelMode::LabSliders.label()) {
+                app.ui.color_panel.wheel_lab = !app.ui.color_panel.wheel_lab;
+            }
+        });
+        ui.separator();
+    }
     let rgb = active(app);
     if ui.button(tl!("Copy Color as HTML")).clicked() {
         ui.ctx().copy_text(html_color(rgb));

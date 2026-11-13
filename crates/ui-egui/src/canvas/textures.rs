@@ -142,14 +142,6 @@ pub(crate) fn ensure_texture_in_view(
     // Detail textures and partial redraws work in the document's own pixels.
     let reduced = reduced || bounds != committed;
     let view = view.filter(|_| !reduced);
-    // A flipped view draws a GPU machine's canvas through here: an adjustment dialog's preview of
-    // a large document (taken by the GPU path) would cost a full-size CPU composite per change.
-    if crate::adjust_preview::shown_key(app) == Some(preview_key)
-        && let Some(st) = app.session.documents().get(idx)
-        && crate::proxy::preview_factor(&st.doc, crate::proxy::reduced_previews(app)) > 1
-    {
-        (doc, preview_key) = (st.doc.clone(), 0);
-    }
     let (display, display_key) = canvas_display(app, &doc, output);
     let seen = app.canvases.get(&cache_key(id, output)).map(|c| (c.tex_revision, c.tex_preview_key));
     let damage = seen.and_then(|seen| damage_since(app, idx, seen, (revision, preview_key), display_key, last_damage)).filter(|_| !reduced);

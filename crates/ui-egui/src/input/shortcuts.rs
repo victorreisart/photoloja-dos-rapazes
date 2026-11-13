@@ -884,7 +884,7 @@ fn handle_registry_and_tool_keys(app: &mut PhotocraftApp, ctx: &egui::Context, f
     false
 }
 
-/// Esc (leave full screen, else deselect), the tool-letter keys, Page/Home/End scrolling and the
+/// Esc (reset rotation, leave full screen, or deselect), the tool-letter keys, Page/Home/End scrolling and the
 /// opacity keys. Runs last, so every state that owns Esc has already had its chance.
 fn handle_escape_and_view_keys(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let pressed = |k: Key| ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
@@ -892,7 +892,7 @@ fn handle_escape_and_view_keys(app: &mut PhotocraftApp, ctx: &egui::Context) {
     // The key is never taken from a state that handles Esc itself: menus, dialogs, text fields
     // and inline type returned above, transform, pen, lasso and crop consumed it, and these own
     // theirs later in the frame: the palette, the canvas and layer menus, the brush picker,
-    // Rotate View, Adaptive Wide Angle, the Filter Gallery, the TIFF prompt, any open egui popup
+    // Adaptive Wide Angle, the Filter Gallery, the TIFF prompt, any open egui popup
     // and the toolbar tool and "…" flyouts. A canvas drag in progress (a marquee being drawn) keeps it too.
     let esc_taken = app.drag.is_some()
         // A Direct Selection drag (a Cmd-drag on an anchor) never reaches `app.drag`: Esc must not
@@ -902,14 +902,27 @@ fn handle_escape_and_view_keys(app: &mut PhotocraftApp, ctx: &egui::Context) {
         || app.ui.canvas_tool_menu.is_some()
         || app.ui.layer_menu.is_some()
         || app.ui.brush_picker.is_some()
-        || app.ui.tool == Tool::RotateView
         || app.wide_angle.is_some()
         || app.save_options_open()
         || app.smart_svg.modal_open()
         || app.distort.gallery.is_some()
         || ctx.any_popup_open()
+        || egui::Popup::is_any_open(ctx)
         || ctx.data(|d| d.get_temp::<(egui::Id, egui::Rect)>(egui::Id::unique("tool-flyout")).is_some())
         || crate::panels::toolbar::more_flyout_open(ctx);
+    if !esc_taken
+        && !crate::vector_ui::path_renaming(app, ctx)
+        && app.session.active_index().and_then(|i| app.ui.views.get(i)).is_some_and(|v| v.rotation != 0.0)
+        && pressed(Key::Escape)
+    {
+        if let Err(e) = crate::menus::invoke(app, ctx, "view.resetView", json!({})) {
+            app.ui.status = e;
+            app.ui.status_error = true;
+        }
+        crate::canvas::rotate_view::cancel_drag(ctx);
+        return;
+    }
+    let esc_taken = esc_taken || app.ui.tool == Tool::RotateView;
     // Both full screen modes (with and without the menu bar) return to Standard, as in Photoshop
     // (#4116), through the menu command so the window and the Screen Mode check follow.
     if !esc_taken && app.ui.view.screen_mode != "standard" && pressed(Key::Escape) {

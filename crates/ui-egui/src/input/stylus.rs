@@ -312,6 +312,17 @@ impl Stylus {
         );
     }
 
+    /// Use the pressure that arrived with this pointer position when the backend provides it.
+    /// Native feeds still supply the rest of the pen pose.
+    pub(crate) fn select_force(&mut self, force: Option<f32>) {
+        if self.use_pressure
+            && let Some(pressure) = force.filter(|f| f.is_finite())
+        {
+            let pose = self.current.or_else(|| self.latest()).unwrap_or_default();
+            self.current = Some(PenSample { pressure: pressure.clamp(0.0, 1.0), ..pose });
+        }
+    }
+
     /// Back to the current sample after a frame's moves.
     pub(crate) fn clear_selection(&mut self) {
         self.current = None;

@@ -255,13 +255,19 @@ fn rail_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &Tokens) {
     ui.painter().line_segment([pos2(x, r.top()), pos2(x, r.bottom())], Stroke::new(1.0, t.separator));
     ui.spacing_mut().item_spacing.y = 4.0;
     use crate::dock::Group;
+    if icons::rail_button(ui, "sliders-horizontal", rb, p.brush_settings, tl!("Brush Settings")).clicked()
+        && let Err(e) = crate::menus::invoke(app, ui.ctx(), "window.panel.brushSettings", serde_json::json!({}))
+    {
+        app.ui.status = e;
+        app.ui.status_error = true;
+    }
     let entries: [(&str, &str, Group); 6] = [
+        ("brush", tl!("Brushes"), Group::Brushes),
         ("sliders-horizontal", tl!("Properties"), Group::Properties),
         ("navigation", tl!("Navigator"), Group::Navigator),
         ("palette", tl!("Color & Swatches"), Group::Color),
         ("layers", tl!("Layers"), Group::Layers),
         ("clock", tl!("History"), Group::History),
-        ("brush", tl!("Brushes"), Group::Brushes),
     ];
     for (icon, name, g) in entries {
         // Studio floats Properties outside the dock.

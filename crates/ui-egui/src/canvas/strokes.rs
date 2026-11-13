@@ -657,15 +657,24 @@ pub(crate) fn freehand_tool(tool: Tool) -> bool {
 /// whether the button was already down when the frame began. A move before a press or after a
 /// release in the same frame is dropped, so a gesture never picks up input from outside its own
 /// press..release interval.
-pub(super) fn pointer_moves(events: &[egui::Event], button: egui::PointerButton, down_at_start: bool) -> Vec<Pos2> {
+pub(super) fn pointer_moves(events: &[egui::Event], button: egui::PointerButton, down_at_start: bool) -> Vec<(Pos2, Option<f32>)> {
     let mut down = down_at_start;
+    let mut previous: Option<&egui::Event> = None;
     let mut out = Vec::new();
-    for e in events {
-        match e {
+    for event in events {
+        match event {
             egui::Event::PointerButton { button: b, pressed, .. } if *b == button => down = *pressed,
-            egui::Event::PointerMoved(p) if down => out.push(*p),
+            egui::Event::PointerMoved(p) if down => {
+                // egui-winit emits the touch event just before its emulated pointer move.
+                let force = match previous {
+                    Some(egui::Event::Touch { phase: egui::TouchPhase::Move, pos, force, .. }) if pos == p => *force,
+                    _ => None,
+                };
+                out.push((*p, force));
+            }
             _ => {}
         }
+        previous = Some(event);
     }
     out
 }

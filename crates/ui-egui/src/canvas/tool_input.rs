@@ -42,7 +42,10 @@ fn tool_move(app: &mut PhotocraftApp, x: f64, y: f64, pressure: f32, mods: egui:
         // ⇧: a selection-tool drag of the selection locks to multiples of 45° (#6231). The Move
         // tool's own drags were already locked by `move_mods::filter_event`.
         let [x, y] = crate::move_mods::selection_drag_to(d, [x, y], mods.shift && tool != Tool::Move);
-        let moved = d.points.last().is_none_or(|p| (p[0] - x).abs() + (p[1] - y).abs() > 0.25);
+        // Preserve subpixel brush motion at 0% instead of filtering small changes in direction.
+        let smoothing = &app.session.tools.brush.smoothing;
+        let min_move = if d.tool == Tool::Brush && (!smoothing.enabled || smoothing.amount == 0.0) { 0.0 } else { 0.25 };
+        let moved = d.points.last().is_none_or(|p| (p[0] - x).abs() + (p[1] - y).abs() > min_move);
         // A held pen repeats its point now and then, so the stroke's time keeps advancing.
         let held = app.stylus.last_point_ms().is_some_and(|t| app.stylus.clock_ms - t >= HOLD_REPEAT_MS)
             && app.live_stroke.as_ref().is_some_and(LiveStroke::wants_time);

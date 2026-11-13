@@ -250,10 +250,13 @@ fn hash(parts: &[&[u8]]) -> u64 {
 
 /// Whether the layer path can draw `doc` cheaply on this app's canvas.
 fn cheap(app: &PhotocraftApp, doc: &Document) -> bool {
-    match &app.gpu {
-        Some(g) => g.supports(doc),
-        None => crate::proxy::preview_factor(doc, crate::proxy::reduced_previews(app)) <= 1,
+    let view = &app.ui.view;
+    if let Some(gpu) = &app.gpu
+        && crate::gpu_canvas::gpu_view_ok(view.flip_horizontal, 0.0, view.display_aspect())
+    {
+        return gpu.supports(doc);
     }
+    crate::proxy::preview_factor(doc, crate::proxy::reduced_previews(app)) <= 1
 }
 
 /// Bring the cached preview up to date for document `idx` (the active one) and return it.
@@ -275,7 +278,11 @@ fn update(app: &mut PhotocraftApp, idx: usize) -> Option<&AdjustPreview> {
     // Commands that target a channel (Channels panel / Quick Mask) or a layer mask keep the proxy
     // preview.
     let channel_target = targets_channel(app, idx, &kind, &params);
-    let session = hash(&[&doc_id.0.to_le_bytes(), &revision.to_le_bytes(), &target.0.to_le_bytes(), &[u8::from(channel_target)]]);
+    let view = &app.ui.view;
+    let gpu_view = app.gpu.is_some() && crate::gpu_canvas::gpu_view_ok(view.flip_horizontal, 0.0, view.display_aspect());
+    let reduced = crate::proxy::reduced_previews(app);
+    let session =
+        hash(&[&doc_id.0.to_le_bytes(), &revision.to_le_bytes(), &target.0.to_le_bytes(), &[u8::from(channel_target), u8::from(gpu_view), u8::from(reduced)]]);
     let h = hash(&[kind.as_bytes(), params.to_string().as_bytes(), &[u8::from(preview)]]);
     if let Some(p) = &app.adjust_preview
         && (p.doc, p.session, p.hash) == (doc_id, session, h)

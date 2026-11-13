@@ -181,6 +181,11 @@ pub fn reset(app: &mut PhotocraftApp) -> Result<Value, String> {
     Ok(json!({"rotation": 0.0, "zoom": v.zoom, "center": v.center}))
 }
 
+/// Drop the rotate gesture when a keyboard reset returns the camera to zero.
+pub(crate) fn cancel_drag(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<RotateDrag>(id()));
+}
+
 /// Route canvas buttons for Rotate View. Returns true when the drag is owned (the canvas then
 /// ignores the tool underneath).
 pub fn drag(ctx: &egui::Context, view: &mut View, xf: &ViewXform, b: &Buttons, pointer: Option<Pos2>) -> bool {
@@ -225,13 +230,9 @@ pub fn compass_visible(rotation: f32) -> bool {
     rotation.is_finite() && rotation.abs() > 0.05
 }
 
-/// Draw the compass and handle a click / Escape / double-click reset. Returns true when the
+/// Draw the compass and handle a click / double-click reset. Returns true when the
 /// pointer over the compass should not start a rotate drag.
 pub fn overlay(app: &PhotocraftApp, ctx: &egui::Context, painter: &egui::Painter, xf: &ViewXform, view: &mut View, response: &egui::Response) -> bool {
-    if app.ui.tool == crate::state::Tool::RotateView && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) && view.rotation != 0.0 {
-        view.rotation = 0.0;
-        ctx.data_mut(|d| d.remove::<RotateDrag>(id()));
-    }
     if app.ui.tool == crate::state::Tool::RotateView && (response.double_clicked() || response.triple_clicked()) {
         view.rotation = 0.0;
         ctx.data_mut(|d| d.remove::<RotateDrag>(id()));

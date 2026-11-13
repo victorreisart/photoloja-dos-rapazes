@@ -283,6 +283,7 @@ fn harness() -> Harness<'static, PhotocraftApp> {
             if !ui.ctx().fonts(|f| f.families().contains(&egui::FontFamily::Name("medium".into()))) {
                 return;
             }
+            crate::shortcuts::handle(app, ui.ctx());
             egui::CentralPanel::default().show(ui, |ui| crate::canvas::document_area(app, ui));
         },
         app,
@@ -334,6 +335,7 @@ fn escape_and_reset_zero_the_angle_without_history() {
 
     let mut h = harness();
     h.state_mut().ui.views[0].rotation = 40.0;
+    h.state_mut().ui.tool = crate::state::Tool::Brush;
     h.event(Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
     h.step();
     h.run_steps(2);
