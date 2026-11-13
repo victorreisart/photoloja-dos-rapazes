@@ -181,7 +181,7 @@ pub fn menu_items(app: &PhotocraftApp) -> Vec<MenuItem> {
             items.insert(after + 1 + k, it);
         }
     }
-    items.retain(|item| crate::links::url_for(&item.id).is_none() && item.id != "help.checkForUpdates");
+    items.retain(|item| crate::links::url_for(&item.id).is_none());
     // Window: the open documents in tab order, after a separator, the active one checked.
     if let Some(last) = items.iter().rposition(|i| i.path.first().map(String::as_str) == Some("Window")) {
         let window = || vec!["Window".to_string()];

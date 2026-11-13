@@ -1321,6 +1321,7 @@ pub struct Preferences {
     pub general: General,
     pub interface: Interface,
     pub workspace: Workspace,
+    pub panel_shortcuts: Option<Vec<String>>,
     pub tools: Tools,
     pub history_log: HistoryLog,
     pub file_handling: FileHandling,

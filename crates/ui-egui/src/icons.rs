@@ -236,7 +236,7 @@ pub fn button_with_icon_size_tip(ui: &mut egui::Ui, name: &str, box_size: f32, i
 /// Rail toggle: "on" gets a quiet filled background and full-strength icon (no accent).
 pub fn rail_button(ui: &mut egui::Ui, name: &str, box_size: f32, on: bool, tooltip: &str) -> Response {
     let t = Tokens::get(ui.ctx());
-    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(box_size), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(box_size), Sense::click_and_drag());
     if on {
         ui.painter().rect_filled(rect, t.radius_sm, t.card);
         ui.painter().rect_stroke(rect, t.radius_sm, egui::Stroke::new(1.0, t.card_border), egui::StrokeKind::Inside);

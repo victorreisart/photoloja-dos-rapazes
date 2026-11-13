@@ -1,3 +1,13 @@
+# PhotoLoja dos Rapazes
+
+PhotoLoja dos Rapazes is a Windows image editor based on [PhotoCraft](https://github.com/storytold/photocraft), with changes to the painting and editing workflow for my personal use.
+
+Download the Windows x64 installer from [GitHub Releases](https://github.com/victorreisart/photoloja-dos-rapazes/releases/latest). The app checks this repository for updates. The installer uses a per-user installation and preserves the existing PhotoLoja settings.
+
+See [PHOTOLOJA.md](PHOTOLOJA.md) for the upstream integration process. The original PhotoCraft project documentation follows.
+
+---
+
 <p align="center">
   <a href="https://getartcraft.com/">
     <picture>

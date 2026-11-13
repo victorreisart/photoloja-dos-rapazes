@@ -1,5 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="PhotoLoja dos Rapazes" Manufacturer="PhotoLoja dos Rapazes" Version="0.23.4"
+  <Package Name="PhotoLoja dos Rapazes" Manufacturer="PhotoLoja dos Rapazes" Version="0.23.5"
            UpgradeCode="5FF348B3-51EF-447B-A8D2-7D6499822B6E" Scope="perUser" Compressed="yes">
     <MajorUpgrade DowngradeErrorMessage="Uma versão mais recente do PhotoLoja já está instalada." />
     <MediaTemplate EmbedCab="yes" />

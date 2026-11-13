@@ -1188,7 +1188,11 @@ pub fn specs() -> Vec<CommandSpec> {
                     crate::commands::check_all_unlocked(&s.active().ok_or(EngineError::NoDocument)?.doc, id)?;
                     let result = copy_mask(s, crate::channel_cmds::target_of(p) == crate::channel_cmds::Target::FilterMask)?;
                     let bg = s.tools.background;
-                    s.edit("Cut Mask", |doc, _| clear_mask(doc, id, bg, p))?;
+                    s.edit("Cut Mask", |doc, _| {
+                    clear_mask(doc, id, bg, p)?;
+                    doc.selection = None;
+                    Ok(())
+                })?;
                     return Ok(result);
                 }
                 // Refuse a locked layer before copying, so a refused Cut leaves the clipboard alone.
@@ -1204,6 +1208,7 @@ pub fn specs() -> Vec<CommandSpec> {
                         for k in colors.indices() {
                             crate::channel_cmds::clear_color_channel(doc, id, k, bg)?;
                         }
+                        doc.selection = None;
                         Ok(())
                     })?;
                     return Ok(result);
@@ -1214,7 +1219,11 @@ pub fn specs() -> Vec<CommandSpec> {
                 }
                 let r = copy(s, false)?;
                 let bg = s.tools.background;
-                s.edit("Cut Pixels", |doc, _| clear_selected(doc, id, bg))?;
+                s.edit("Cut Pixels", |doc, _| {
+                    clear_selected(doc, id, bg)?;
+                    doc.selection = None;
+                    Ok(())
+                })?;
                 Ok(r)
             }
         ),

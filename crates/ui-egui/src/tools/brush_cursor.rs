@@ -47,7 +47,8 @@ impl Key {
 /// stroke does.
 pub(crate) fn tip_axes(xf: &crate::canvas::ViewXform, size: f32) -> [Vec2; 2] {
     let r = if size.is_finite() { size.max(0.0) / 2.0 } else { 0.0 };
-    [xf.map_vec(Vec2::new(r, 0.0)), xf.map_vec(Vec2::new(0.0, r))]
+    let screen = crate::canvas::ViewXform { rotation: 0.0, flip: false, ..*xf };
+    [screen.map_vec(Vec2::new(r, 0.0)), screen.map_vec(Vec2::new(0.0, r))]
 }
 
 /// Apply pen orientation after the cached tip shape, in document space before the view.

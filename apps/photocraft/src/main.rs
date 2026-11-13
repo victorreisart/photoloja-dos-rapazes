@@ -64,6 +64,8 @@ mod presentation;
 #[cfg(any(target_os = "linux", test))]
 mod print_portal;
 mod screen_color;
+#[cfg(target_os = "windows")]
+mod updates;
 mod services;
 // macOS gets one instance from LaunchServices (open-documents Apple events).
 #[cfg(any(not(target_os = "macos"), test))]

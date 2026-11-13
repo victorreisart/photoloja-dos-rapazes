@@ -317,6 +317,15 @@ pub(super) fn live_stroke(app: &PhotocraftApp, idx: usize) -> Option<&LiveStroke
 pub(super) fn stroke_params(app: &PhotocraftApp, d: &Drag, points: &[Vec<f64>]) -> serde_json::Value {
     let tool = d.tool;
     let mut p = json!({ "points": points, "erase": d.erase, "zoom": app.point_zoom(), "target": paint_target(app) });
+    if matches!(tool, Tool::Brush | Tool::Eraser | Tool::MixerBrush)
+        && let Some(view) = app.session.active_index().and_then(|index| app.ui.views.get(index))
+        && (view.rotation != 0.0 || app.ui.view.flip_horizontal)
+    {
+        let brush = &app.session.tools.brush;
+        let flip = app.ui.view.flip_horizontal;
+        let angle = if flip { -brush.angle } else { brush.angle };
+        p["brush"] = json!({"angle": (angle - view.rotation).rem_euclid(360.0), "flipX": brush.flip_x ^ flip});
+    }
     unsmoothed_line(&mut p, d.line);
     if d.clear {
         p["mode"] = json!("clear");

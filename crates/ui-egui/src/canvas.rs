@@ -506,8 +506,11 @@ fn paint_canvas(
             edge_rect = xf.doc_rect(area);
         }
         if !crate::theme::Tokens::get(ctx).bevel && drop_shadow {
-            let shadow_rect = edge_rect;
-            painter.add(egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(150) }.as_shape(shadow_rect, 0));
+            if view.rotation.abs() > 0.05 {
+                paint::rotated_shadow(painter, &xf, area);
+            } else {
+                painter.add(egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(150) }.as_shape(edge_rect, 0));
+            }
         }
         let rotated = view.rotation.abs() > 0.05;
         let checkerboard = app.session.prefs().transparency_and_gamut.square().map(|square| (checker(app, ctx), square));

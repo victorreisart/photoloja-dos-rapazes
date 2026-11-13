@@ -864,7 +864,11 @@ fn show_layout(app: &mut PhotocraftApp, ui: &mut egui::Ui, dock_only: bool) {
     // Keys pressed in a floating panel's own OS window run the main window's shortcuts.
     let forwarded = std::mem::take(&mut output.forwarded_events);
     crate::shortcuts::handle_forwarded(app, ui.ctx(), forwarded, output.forwarded_modifiers.unwrap_or_default());
-    let mut actions = output.actions;
+    let rail_drop = ui.ctx().data_mut(|d| d.remove_temp::<bool>(crate::panels::dock::shortcut_drop_id())).unwrap_or(false);
+    if rail_drop {
+        craft_ui::docking::cancel_drag::<String>(ui.ctx(), area);
+    }
+    let mut actions = if rail_drop { Vec::new() } else { output.actions };
     pin_group_heights(ui.ctx(), &layout, &mut actions);
     for action in actions {
         let result = match action {
@@ -1317,6 +1321,46 @@ fn reveal_group(app: &mut PhotocraftApp, panel: &str) {
                 app.ui.dock.set_collapsed(*group, false);
             }
         }
+    }
+}
+
+pub(crate) fn shortcut_info(id: &str) -> Option<(&'static str, &'static str, Option<Group>)> {
+    let entry = match id {
+        "brushSettings" => return Some(("brush-list", "Brush Settings", None)),
+        "brushes" => ("brush", Some(Group::Brushes)),
+        "properties" => ("sliders-horizontal", Some(Group::Properties)),
+        "navigator" => ("navigation", Some(Group::Navigator)),
+        "color" => ("palette", Some(Group::Color)),
+        "layers" => ("layers", Some(Group::Layers)),
+        "history" => ("clock", Some(Group::History)),
+        "actions" => ("play", None),
+        _ => ("panel-top", None),
+    };
+    PANELS.iter().find(|panel| panel.0 == id).map(|panel| (entry.0, panel.1, entry.1))
+}
+
+/// A panel tab whose docking drag began in this viewport.
+pub(crate) fn dragged_shortcut(ctx: &egui::Context) -> Option<String> {
+    use craft_ui::docking::{DockArea, Hit};
+    let pressed = ctx.input(|i| i.pointer.press_origin());
+    let hit = DockArea::<String>::hit_rects(ctx, area_id()).into_iter().find_map(|(hit, rect)| {
+        match hit {
+            Hit::Tab(panel) | Hit::DragBar(panel) if pressed.is_some_and(|pos| rect.contains(pos)) && shortcut_info(&panel).is_some() => Some(panel),
+            _ => None,
+        }
+    });
+    let key = area_id().with("rail-drag");
+    let dragging = ctx.input(|i| i.pointer.is_decidedly_dragging());
+    if dragging && let Some(panel) = hit {
+        ctx.data_mut(|d| d.insert_temp(key, panel));
+    }
+    if ctx.input(|i| i.pointer.primary_released()) {
+        ctx.data_mut(|d| d.remove_temp::<String>(key))
+    } else if ctx.input(|i| i.pointer.primary_down()) {
+        ctx.data(|d| d.get_temp::<String>(key))
+    } else {
+        ctx.data_mut(|d| d.remove::<String>(key));
+        None
     }
 }
 

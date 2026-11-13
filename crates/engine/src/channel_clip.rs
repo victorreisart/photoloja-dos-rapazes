@@ -140,7 +140,11 @@ pub(crate) fn paste(s: &mut Session, p: &Value, k: usize, in_place: bool, limit:
 pub(crate) fn cut(s: &mut Session, id: LayerId, k: usize) -> Result<Value> {
     let r = copy(s, &Value::Null)?.ok_or_else(|| EngineError::Other("no colour channel is targeted".into()))?;
     let bg = s.tools.background;
-    s.edit("Cut Pixels", |doc, _| crate::channel_cmds::clear_color_channel(doc, id, k, bg))?;
+    s.edit("Cut Pixels", |doc, _| {
+        crate::channel_cmds::clear_color_channel(doc, id, k, bg)?;
+        doc.selection = None;
+        Ok(())
+    })?;
     Ok(r)
 }
 

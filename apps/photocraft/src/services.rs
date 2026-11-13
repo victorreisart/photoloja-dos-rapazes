@@ -785,6 +785,9 @@ pub fn native(automation: Option<photocraft_automation::AuthorizedWorkspace>) ->
         inbox: None,
         open_url: Some(Box::new(|url: &str| open::that(url).map_err(|e| e.to_string()))),
         beep: Some(platform_beep),
+        #[cfg(target_os = "windows")]
+        check_updates: Some(crate::updates::service()),
+        #[cfg(not(target_os = "windows"))]
         check_updates: None,
         last_update: None,
         clipboard_set_image: Some({

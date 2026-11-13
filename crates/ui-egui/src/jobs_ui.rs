@@ -10,12 +10,8 @@
 //!   shown after a short delay so quick jobs don't flash it. Esc cancels.
 //! - Files opening in the background get a document tab at once ([`OpenTab`]); its canvas area
 //!   shows the progress, and closing the tab cancels the open.
-//! - Saves encode and write on a worker ([`start_save`], #2017); the document is locked
-//!   meanwhile, and the save is recorded when the job ends. With Preferences › File Handling ›
-//!   Save in Background on (the default) you keep working while the file is written, the progress
-//!   in the document's tab and the status bar; off, the save runs in the foreground (#6207): the
-//!   modal progress dialog shows at once and no shortcut or tool input reaches the app until the
-//!   file is complete ([`foreground_save`]).
+//! - Saves encode an immutable revision on a worker. Edits can continue; completion marks
+//!   only the written revision as saved.
 //!
 //! The canvas keeps showing the pre-job state: workers never touch the session's documents.
 
@@ -141,7 +137,7 @@ const SAVE_CANCELLED: &str = "cancelled";
 pub struct SaveJob {
     pub job: JobId,
     pub doc: DocId,
-    /// The document's revision when the save started (the job locks it against edits).
+    /// The document revision captured when the save started.
     pub revision: u64,
     pub path: String,
     /// A copy leaves the document's path and unsaved state alone.
@@ -152,9 +148,6 @@ pub struct SaveJob {
     /// The job has ended (cancelled, say) but its worker may still be running: kept until it
     /// returns, so quitting and another save to the same file wait for it.
     pub ended: bool,
-    /// Started with Save in Background off: the app waits for it under the modal progress dialog
-    /// (see [`foreground_save`]).
-    pub foreground: bool,
 }
 
 /// The shell's job bookkeeping.
@@ -377,8 +370,7 @@ pub(crate) fn finish_open_tab(app: &mut PhotocraftApp, tab: &OpenTab, v: &Value)
 }
 
 /// Save the active document to `path` in the background: `save` encodes and writes it on a
-/// worker while the window keeps drawing and shows the progress dialog. The document is locked
-/// until the job ends, which [`tick`] records like a synchronous save. `Ok(None)`: started;
+/// worker while the editor stays interactive. [`tick`] records the saved revision. `Ok(None)`: started;
 /// `Ok(Some(..))`: it ran inline (wasm) and is already recorded.
 pub fn start_save(
     app: &mut PhotocraftApp,
@@ -396,7 +388,7 @@ pub fn start_save(
     crate::app::ensure_memory_to_save(&st.doc, &path)?;
     let name = crate::file_open::display_name(&path);
     // One writer per file: an older snapshot must not land after a newer one.
-    if app.jobs.saves.iter().any(|s| s.path == path) {
+    if app.jobs.saves.iter().any(|s| photocraft_engine::file_cmds::same_file(&s.path, &path)) {
         return Err(crate::i18n::fmt(tl!("A save to {name} is still running; try again when it finishes"), &[("name", &name)]));
     }
     let (snapshot, doc, revision) = (Arc::clone(&st.doc), st.doc.id, st.revision);
@@ -409,7 +401,7 @@ pub fn start_save(
         SAVE_JOB,
         json!({"path": path}),
         &label,
-        true,
+        false,
         move |ctx| {
             let _done = WorkerDone(worker);
             let ctl = SaveCtl { job: ctx.clone() };
@@ -429,9 +421,7 @@ pub fn start_save(
             Ok(Some((path, warnings)))
         }
         Started::Job(job) => {
-            // Preferences › File Handling › Save in Background, read when the save starts.
-            let foreground = !app.session.prefs().file_handling.save_in_background;
-            app.jobs.saves.push(SaveJob { job, doc, revision, path, copy, automation, state, ended: false, foreground });
+            app.jobs.saves.push(SaveJob { job, doc, revision, path, copy, automation, state, ended: false });
             // Control and MCP requests wait on it, as for other jobs.
             app.jobs.last_started = Some(job);
             // The status bar's progress readout names the save; clear any old message.
@@ -534,19 +524,8 @@ pub fn keep_polling(app: &PhotocraftApp, ctx: &egui::Context) -> bool {
 }
 
 /// The save the app is waiting on, while it runs: one started with Preferences › File Handling ›
-/// Save in Background off (#6207). Like Photoshop's foreground save it blocks the app: the modal
-/// progress dialog shows at once ([`dialog`]) and no shortcut or tool reaches the documents
-/// until the file is written; anything after it (a close prompt, quitting) waits for it.
-pub fn foreground_save(app: &PhotocraftApp) -> Option<JobInfo> {
-    app.jobs.saves.iter().filter(|s| s.foreground && !s.ended).find_map(|s| app.session.job(s.job))
-}
-
-/// The job the user is looking at: a foreground save, the open tab in view, the active
-/// document's job, or (for the status bar) the newest running job.
+/// The open tab in view, the active document's job, or the newest running job.
 pub fn job_in_view(app: &PhotocraftApp) -> Option<JobInfo> {
-    if let Some(j) = foreground_save(app) {
-        return Some(j);
-    }
     if let Some(j) = app.jobs.focus.and_then(|j| app.session.job(j)) {
         return Some(j);
     }
@@ -947,30 +926,20 @@ pub(crate) fn batch_preview(app: &mut PhotocraftApp, ui: &mut egui::Ui) -> bool 
 
 /// The modal progress window for a job locking the active document (Photoshop shows one for
 /// long filters): title, status, bar, percentage and elapsed time, Cancel. Appears after
-/// [`DIALOG_DELAY_MS`]; Esc cancels (see [`tick`]). A save shows it only when it runs in the
-/// foreground (Save in Background off), and then at once, so nothing can be clicked meanwhile; a
-/// background save shows its progress in the tab and the status bar instead.
+/// [`DIALOG_DELAY_MS`]; Esc cancels (see [`tick`]). Saves show progress in the tab and status bar.
 pub fn dialog(app: &mut PhotocraftApp, ctx: &egui::Context) {
     if let Some(job) = app.session.jobs().into_iter().find(|job| job.command == "file.automate.batch" && app.session.batch_interrupt_waiting(job.id)) {
         batch_interrupt_dialog(app, ctx, job.id);
         return;
     }
-    let j = match foreground_save(app) {
-        Some(j) => j,
-        None => {
-            let Some(j) = app.session.active_job() else { return };
-            // A save shows its progress in the tab and the status bar; so does a place, which
-            // leaves the view free to zoom and pan while the file is decoded.
-            let place = place_uses_status_bar(
-                &j.command,
-                !app.ui.view.hides_chrome() && app.ui.panels.status_bar && job_in_view(app).is_some_and(|shown| shown.id == j.id),
-            );
-            if j.command == "file.automate.batch" || j.elapsed_ms < DIALOG_DELAY_MS || place || app.jobs.saves.iter().any(|s| s.job == j.id) {
-                return;
-            }
-            j
-        }
-    };
+    let Some(j) = app.session.active_job() else { return };
+    let place = place_uses_status_bar(
+        &j.command,
+        !app.ui.view.hides_chrome() && app.ui.panels.status_bar && job_in_view(app).is_some_and(|shown| shown.id == j.id),
+    );
+    if crate::transform_tool::committing(app) == Some(j.id) || j.command == "file.automate.batch" || j.elapsed_ms < DIALOG_DELAY_MS || place {
+        return;
+    }
     let t = Tokens::get(ctx);
     let mut cancel_it = false;
     // Photoshop doesn't dim the window behind its progress dialog either.

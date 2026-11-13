@@ -95,7 +95,9 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                     // (Preferences), then search (Edit › Search), and narrows the switcher
                     // (Window › Workspace) before anything runs over.
                     let room = ui.available_width();
-                    let icons_shown: u8 = if room >= WORKSPACE_MIN + 2.0 * ICON_SLOT {
+                    let icons_shown: u8 = if room >= WORKSPACE_MIN + 3.0 * ICON_SLOT && app.session.updates.check.is_some() {
+                        3
+                    } else if room >= WORKSPACE_MIN + 2.0 * ICON_SLOT {
                         2
                     } else if room >= WORKSPACE_MIN + ICON_SLOT {
                         1
@@ -124,6 +126,9 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                             crate::prefs_ui::cycle_appearance(app, ui.ctx());
                         }
                         button.context_menu(|ui| crate::prefs_ui::appearance_context_menu(app, ui));
+                    }
+                    if icons_shown >= 3 {
+                        crate::updates_ui::toolbar(app, ui);
                     }
                     if rtl { ui.min_rect().right() } else { ui.min_rect().left() }
                 };

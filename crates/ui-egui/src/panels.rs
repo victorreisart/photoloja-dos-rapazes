@@ -29,7 +29,7 @@ pub mod color_hud;
 pub mod color_panel_ui;
 pub mod comps_ui;
 pub mod doc_props_ui;
-mod dock;
+pub(crate) mod dock;
 pub mod histogram_panel;
 mod history;
 pub mod history_menu_ui;

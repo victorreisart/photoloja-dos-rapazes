@@ -254,33 +254,84 @@ fn rail_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let x = if crate::direction::is_rtl() { r.right() } else { r.left() };
     ui.painter().line_segment([pos2(x, r.top()), pos2(x, r.bottom())], Stroke::new(1.0, t.separator));
     ui.spacing_mut().item_spacing.y = 4.0;
-    use crate::dock::Group;
-    if icons::rail_button(ui, "sliders-horizontal", rb, p.brush_settings, tl!("Brush Settings")).clicked()
-        && let Err(e) = crate::menus::invoke(app, ui.ctx(), "window.panel.brushSettings", serde_json::json!({}))
-    {
-        app.ui.status = e;
-        app.ui.status_error = true;
-    }
-    let entries: [(&str, &str, Group); 6] = [
-        ("brush", tl!("Brushes"), Group::Brushes),
-        ("sliders-horizontal", tl!("Properties"), Group::Properties),
-        ("navigation", tl!("Navigator"), Group::Navigator),
-        ("palette", tl!("Color & Swatches"), Group::Color),
-        ("layers", tl!("Layers"), Group::Layers),
-        ("clock", tl!("History"), Group::History),
-    ];
-    for (icon, name, g) in entries {
-        // Studio floats Properties outside the dock.
-        let docked = t.pro || g != Group::Properties;
-        let on = if customized { crate::panel_docking::rail_on(app, g) } else { g.shown(&p) && !(docked && app.ui.dock.is_collapsed(g)) };
-        if icons::rail_button(ui, icon, rb, on, name).clicked() {
-            if customized {
-                crate::panel_docking::rail_click(app, g);
-            } else {
-                crate::dock::rail_click(app, g, docked);
+    let mut shortcuts = shortcuts(app);
+    let rail = ui.max_rect();
+    let ctx = ui.ctx().clone();
+    let drag_id = egui::Id::unique("panel-shortcut-drag");
+    let mut changed = false;
+    let mut slots = Vec::new();
+    for id in shortcuts.clone() {
+        let Some((icon, label, group)) = crate::panel_docking::shortcut_info(&id) else { continue };
+        let docked = t.pro || group != Some(crate::dock::Group::Properties);
+        let on = match group {
+            Some(g) if customized => crate::panel_docking::rail_on(app, g),
+            Some(g) => g.shown(&p) && !(docked && app.ui.dock.is_collapsed(g)),
+            None if id == "brushSettings" => p.brush_settings,
+            None => false,
+        };
+        let response = ui.push_id(&id, |ui| icons::rail_button(ui, icon, rb, on, label)).inner;
+        slots.push((id.clone(), response.rect.center().y));
+        if response.drag_started() {
+            ctx.data_mut(|d| d.insert_temp(drag_id, id.clone()));
+        }
+        if response.clicked() {
+            match group {
+                Some(g) if customized => crate::panel_docking::rail_click(app, g),
+                Some(g) => crate::dock::rail_click(app, g, docked),
+                None => {
+                    let result = if id == "brushSettings" {
+                        crate::menus::invoke(app, &ctx, "window.panel.brushSettings", serde_json::json!({}))
+                    } else {
+                        app.run("window.panel.activate", serde_json::json!({"panel": id}))
+                    };
+                    if let Err(error) = result {
+                        app.ui.status = error;
+                        app.ui.status_error = true;
+                    }
+                }
             }
         }
+        response.context_menu(|ui| {
+            if ui.button("Remover atalho").clicked() {
+                shortcuts.retain(|entry| entry != &id);
+                changed = true;
+                ui.close();
+            }
+        });
     }
+    let released = ctx.input(|i| i.pointer.primary_released());
+    let drop = ctx.pointer_interact_pos().filter(|pos| rail.contains(*pos));
+    let panel_drag = crate::panel_docking::dragged_shortcut(&ctx);
+    let dragging = ctx.data(|d| d.get_temp::<String>(drag_id)).or(panel_drag);
+    if let (Some(id), Some(pos)) = (dragging, drop) {
+        let before = slots.iter().find(|(other, y)| other != &id && pos.y < *y);
+        if !released {
+            let y = before.map_or_else(|| slots.last().map_or(rail.top(), |(_, y)| y + rb * 0.5 + 2.0), |(_, y)| y - rb * 0.5 - 2.0);
+            ui.painter().hline(rail.x_range(), y, Stroke::new(2.0, t.accent));
+        } else {
+            shortcuts.retain(|entry| entry != &id);
+            let index = before.and_then(|(next, _)| shortcuts.iter().position(|entry| entry == next)).unwrap_or(shortcuts.len());
+            shortcuts.insert(index, id);
+            ctx.data_mut(|d| d.insert_temp(shortcut_drop_id(), true));
+            changed = true;
+        }
+    }
+    if released || !ctx.input(|i| i.pointer.primary_down()) {
+        ctx.data_mut(|d| d.remove::<String>(drag_id));
+    }
+    if changed {
+        app.session.edit_prefs(|prefs| prefs.panel_shortcuts = Some(shortcuts));
+    }
+}
+
+pub(crate) fn shortcut_drop_id() -> egui::Id {
+    egui::Id::unique("panel-shortcut-drop")
+}
+
+fn shortcuts(app: &PhotocraftApp) -> Vec<String> {
+    app.session.prefs().panel_shortcuts.clone().unwrap_or_else(|| {
+        ["brushSettings", "brushes", "properties", "navigator", "color", "layers", "history"].map(str::to_owned).into()
+    })
 }
 
 /// The dock's narrowest width (points). It is the right dock, on the left in a right-to-left UI.

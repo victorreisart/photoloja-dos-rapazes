@@ -22,8 +22,8 @@ Use `--unshallow` apenas se `git rev-parse --is-shallow-repository` retornar
 `true`. Para uma correção isolada, use `git cherry-pick <commit>` na branch
 de integração. Se ambos os projetos alterarem o mesmo trecho, resolva o
 conflito preservando os comportamentos desejados e teste antes de integrar
-a branch ao PhotoLoja. A instalação do PhotoLoja não consulta as releases
-do PhotoCraft.
+a branch ao PhotoLoja. O PhotoLoja verifica apenas as releases do seu próprio repositório. Publique tags como
+`v0.23.5`, com o instalador `PhotoLoja-dos-Rapazes-0.23.5-Setup.exe` na release.
 
 A correção do Windows Ink inclui o patch em `packaging/photoloja/winit-windows-ink.patch`.
 Aplique-o ao checkout do winit fixado pelo Cargo se a dependência ainda não

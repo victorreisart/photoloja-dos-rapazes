@@ -15,7 +15,8 @@
 pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
     icon_png: Some(include_bytes!("../../../assets/photoloja/logo-128.png")),
     accent: Some([0x2f, 0x7b, 0xf5]),
-    ..craft_update::suite::PHOTOCRAFT
+    developer: "Victor Reis",
+    ..craft_update::app::App::new("photoloja", "PhotoLoja dos Rapazes", "Image editing", "victorreisart/photoloja-dos-rapazes")
 };
 
 /// Translate a string literal into the current UI language: `tl!("Image Size…")`.

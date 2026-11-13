@@ -504,6 +504,29 @@ pub(super) fn draw_beyond_canvas(app: &mut PhotocraftApp, painter: &egui::Painte
 
 /// Document rect `b`'s corners on screen, clockwise from its top-left (a parallelogram in a turned
 /// view).
+pub(super) fn rotated_shadow(painter: &egui::Painter, xf: &ViewXform, bounds: DRect) {
+    let quad = doc_quad(xf, bounds);
+    let mut mesh = egui::Mesh::default();
+    for (ring, (distance, alpha)) in [(0.0, 145), (4.0, 100), (10.0, 50), (18.0, 13), (28.0, 0)].into_iter().enumerate() {
+        for (i, corner) in quad.iter().enumerate() {
+            let outward = (*corner - quad[(i + 1) % 4]).normalized() + (*corner - quad[(i + 3) % 4]).normalized();
+            mesh.colored_vertex(*corner + outward * distance + vec2(0.0, 8.0), Color32::from_black_alpha(alpha));
+        }
+        if ring == 0 {
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+        } else {
+            let outer = ring as u32 * 4;
+            for i in 0..4 {
+                let next = (i + 1) % 4;
+                mesh.add_triangle(outer + i - 4, outer + next - 4, outer + next);
+                mesh.add_triangle(outer + i - 4, outer + next, outer + i);
+            }
+        }
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 fn doc_quad(xf: &ViewXform, b: DRect) -> [Pos2; 4] {
     [(b.x0, b.y0), (b.x1, b.y0), (b.x1, b.y1), (b.x0, b.y1)].map(|(x, y)| xf.to_screen(x as f32, y as f32))
 }
