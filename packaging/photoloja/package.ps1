@@ -14,7 +14,7 @@ if ($LASTEXITCODE -ne 0) { throw "WiX failed to build the package." }
 wix msi validate $msi -ice ICE50
 if ($LASTEXITCODE -ne 0) { throw "WiX failed to validate the shortcut." }
 $csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-& $csc /nologo /target:winexe /platform:x64 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll "/win32icon:$icon" "/resource:$msi,PhotoLoja.msi" "/resource:$logo,PhotoLoja.logo" "/out:$setup" "$PSScriptRoot/Setup.cs"
+& $csc /nologo /target:winexe /platform:x64 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll "/win32icon:$icon" "/resource:$msi,PhotoLoja.msi" "/resource:$logo,PhotoLoja.logo" "/out:$setup" (Join-Path $PSScriptRoot "Setup.cs")
 if ($LASTEXITCODE -ne 0) { throw "Could not compile the setup window." }
 $embedded = [Reflection.Assembly]::LoadFile($setup).GetManifestResourceStream('PhotoLoja.msi')
 try { $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($embedded)) } finally { $embedded.Dispose() }
