@@ -42,7 +42,7 @@ fn open_filter_extensions(extensions: &[&str]) -> Vec<String> {
 /// picker defaults to another filter.
 const OPEN_FILTERS: &[(&str, &[&str])] = &[
     ("Photoshop", &["psd", "psb", "psdt"]),
-    ("PhotoCraft", &["pcraft"]),
+    ("PhotoLoja dos rapazes", &["pcraft"]),
     ("Affinity", &["af", "afdesign", "afphoto", "afpub"]),
     ("Amiga IFF", &["iff", "lbm", "ilbm"]),
     ("BMP", &["bmp", "dib"]),
@@ -92,7 +92,7 @@ fn open_filters() -> Vec<(&'static str, Vec<String>)> {
 const SAVE_FILTERS: &[(&str, &[&str])] = &[
     ("PSD Document", &["psd", "psb"]),
     ("PSB Large Document", &["psb"]),
-    ("PhotoCraft", &["pcraft"]),
+    ("PhotoLoja dos rapazes", &["pcraft"]),
     ("Amiga IFF", &["iff"]),
     ("BMP", &["bmp", "dib"]),
     ("Cineon", &["cin"]),
@@ -785,8 +785,8 @@ pub fn native(automation: Option<photocraft_automation::AuthorizedWorkspace>) ->
         inbox: None,
         open_url: Some(Box::new(|url: &str| open::that(url).map_err(|e| e.to_string()))),
         beep: Some(platform_beep),
-        check_updates: Some(crate::updates::service()),
-        last_update: Some(crate::updates::last_update),
+        check_updates: None,
+        last_update: None,
         clipboard_set_image: Some({
             let clip = clip.clone();
             guarded_clipboard_set(move |w: u32, h: u32, px: &[u8]| {

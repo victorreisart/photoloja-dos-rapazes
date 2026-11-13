@@ -1,0 +1,36 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="PhotoLoja dos rapazes" Manufacturer="PhotoLoja dos rapazes" Version="0.23.3"
+           UpgradeCode="5FF348B3-51EF-447B-A8D2-7D6499822B6E" Scope="perUser" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="Uma versão mais recente do PhotoLoja já está instalada." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="PhotoLoja.exe" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="PhotoLoja.exe" />
+    <Property Id="INSTALLFOLDER" Secure="yes">
+      <RegistrySearch Id="PreviousInstall" Root="HKCU" Key="Software\PhotoLoja" Name="InstallDir" Type="raw" />
+    </Property>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="PhotoLoja">
+          <Component Id="App" Guid="6DAF479A-094B-48B0-A015-B29C9856B033">
+            <File Source="$(var.App)" Name="photoloja.exe" KeyPath="yes">
+              <Shortcut Id="Launch" Directory="ProgramMenuFolder" Name="PhotoLoja dos rapazes"
+                        Advertise="yes" Icon="PhotoLoja.exe" WorkingDirectory="INSTALLFOLDER" />
+            </File>
+            <RegistryValue Root="HKCU" Key="Software\PhotoLoja" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
+          </Component>
+          <Component Id="Notices" Guid="61874843-969E-45FA-A42B-0FA237655E71">
+            <File Source="$(var.SourceRoot)\LICENSE-APACHE" />
+            <File Source="$(var.SourceRoot)\LICENSE-MIT" />
+            <File Source="$(var.SourceRoot)\NOTICE" />
+            <File Source="$(var.SourceRoot)\ATTRIBUTION.md" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <Feature Id="Main">
+      <ComponentRef Id="App" />
+      <ComponentRef Id="Notices" />
+    </Feature>
+  </Package>
+</Wix>

@@ -55,7 +55,7 @@ fn in_app_bundle(exe: &std::path::Path) -> bool {
 #[cfg(target_os = "macos")]
 const PNG: &[u8] = include_bytes!("../../../assets/app-icon/photocraft-1024.png");
 #[cfg(not(target_os = "macos"))]
-const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.photocraft.png");
+const PNG: &[u8] = include_bytes!("../../../assets/photoloja/logo-256.png");
 
 #[cfg(test)]
 mod tests {
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn windows_and_linux_icons_keep_the_round_corners() {
         // rx=112 of 512 leaves (10, 10) of a 256 px render transparent; the old crop filled it (#4478).
-        let png = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.photocraft.png");
+        let png = include_bytes!("../../../assets/photoloja/logo-256.png");
         let icon = eframe::icon_data::from_png_bytes(png).unwrap();
         assert_eq!(icon.width, 256);
         assert_eq!(icon.rgba[(10 * 256 + 10) * 4 + 3], 0, "corner is transparent");

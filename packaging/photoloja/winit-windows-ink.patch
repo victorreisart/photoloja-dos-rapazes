@@ -1,0 +1,100 @@
+diff --git a/src/platform_impl/windows/event_loop.rs b/src/platform_impl/windows/event_loop.rs
+index 0d1e9b08..f2035541 100644
+--- a/src/platform_impl/windows/event_loop.rs
++++ b/src/platform_impl/windows/event_loop.rs
+@@ -35,7 +35,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+     ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+ };
+ use windows_sys::Win32::UI::Input::Pointer::{
+-    POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
++    POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_PEN_INFO,
+ };
+ use windows_sys::Win32::UI::Input::Touch::{
+     CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE, TOUCHEVENTF_UP,
+@@ -2043,6 +2043,27 @@ unsafe fn public_window_callback_inner(
+                 }
+                 unsafe { pointer_infos.set_len(pointer_info_count) };
+ 
++                // A single WM_POINTERUPDATE can carry several samples. A latest-only pressure
++                // lookup gives every historical position the pressure at the end of the packet.
++                let pen_history = if pointer_infos.iter().any(|info| info.pointerType == PT_PEN) {
++                    util::GET_POINTER_PEN_INFO_HISTORY.and_then(|get_history| {
++                        const MAX_PEN_HISTORY: u32 = 256;
++                        let mut count = entries_count.min(MAX_PEN_HISTORY);
++                        let mut samples: Vec<POINTER_PEN_INFO> =
++                            vec![unsafe { mem::zeroed() }; count as usize];
++                        if count == 0
++                            || unsafe { get_history(pointer_id, &mut count, samples.as_mut_ptr()) }
++                                == 0
++                        {
++                            return None;
++                        }
++                        samples.truncate(count.min(MAX_PEN_HISTORY) as usize);
++                        Some(samples)
++                    })
++                } else {
++                    None
++                };
++
+                 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
+                 // The information retrieved appears in reverse chronological order, with the most
+                 // recent entry in the first row of the returned array
+@@ -2104,17 +2125,31 @@ unsafe fn public_window_callback_inner(
+                             })
+                         },
+                         PT_PEN => {
+-                            let mut pen_info = mem::MaybeUninit::uninit();
+-                            util::GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
+-                                match unsafe {
+-                                    GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
+-                                } {
+-                                    0 => None,
+-                                    _ => normalize_pointer_pressure(unsafe {
+-                                        pen_info.assume_init().pressure
+-                                    }),
+-                                }
+-                            })
++                            if let Some(info) = pen_history.as_ref().and_then(|samples| {
++                                samples.iter().find(|sample| {
++                                    let sample = &sample.pointerInfo;
++                                    sample.pointerId == pointer_info.pointerId
++                                        && sample.frameId == pointer_info.frameId
++                                        && sample.PerformanceCount == pointer_info.PerformanceCount
++                                })
++                            }) {
++                                Some(Force::Normalized(f64::from(info.pressure.min(1024)) / 1024.0))
++                            } else {
++                                let mut pen_info = mem::MaybeUninit::uninit();
++                                util::GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
++                                    match unsafe {
++                                        GetPointerPenInfo(
++                                            pointer_info.pointerId,
++                                            pen_info.as_mut_ptr(),
++                                        )
++                                    } {
++                                        0 => None,
++                                        _ => normalize_pointer_pressure(unsafe {
++                                            pen_info.assume_init().pressure
++                                        }),
++                                    }
++                                })
++                            }
+                         },
+                         _ => None,
+                     };
+diff --git a/src/platform_impl/windows/util.rs b/src/platform_impl/windows/util.rs
+index a3a7705d..ca2c8c3f 100644
+--- a/src/platform_impl/windows/util.rs
++++ b/src/platform_impl/windows/util.rs
+@@ -276,5 +276,11 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>>
+     Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+ pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
+     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
++pub(crate) type GetPointerPenInfoHistory =
++    unsafe extern "system" fn(u32, *mut u32, *mut POINTER_PEN_INFO) -> BOOL;
++
++pub(crate) static GET_POINTER_PEN_INFO_HISTORY: Lazy<Option<GetPointerPenInfoHistory>> =
++    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfoHistory));
++
+ pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
+     Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
